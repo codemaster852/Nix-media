@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NixMedia</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Custom Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles and animations */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .hidden { display: none; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #notification-toast {
+            transition: transform 0.5s ease-in-out;
+            transform: translateX(120%);
+        }
+        #notification-toast.show {
+            transform: translateX(0);
+        }
+        .button-spinner .spinner {
+             border-top-color: white;
+             border-left-color: white;
+             border-right-color: transparent;
+             border-bottom-color: transparent;
+        }
+        @keyframes highlight-post {
+            0% { background-color: rgba(59, 130, 246, 0.2); }
+            100% { background-color: transparent; }
+        }
+        .post-highlight {
+            animation: highlight-post 2s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+
+    <!-- Notification Toast -->
+    <div id="notification-toast" class="hidden fixed top-5 right-5 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+        <p id="notification-message"></p>
+    </div>
+
+    <!-- Main Application Container -->
+    <div id="app" class="min-h-screen">
+
+        <!-- Loading Spinner (shown on initial load) -->
+        <div id="loading-spinner" class="fixed inset-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center z-50">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Authentication Section (Login/Signup) -->
+        <div id="auth-section" class="hidden max-w-md mx-auto mt-10 p-8 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+            <h1 class="text-3xl font-bold text-center mb-2 text-blue-600 dark:text-blue-400">NixMedia</h1>
+            <p class="text-center text-gray-500 dark:text-gray-400 mb-6">Connect with the world.</p>
+            
+            <!-- Auth Forms: Login and Signup -->
+            <div id="login-form">
+                <h2 class="text-2xl font-semibold mb-4 text-center">Login</h2>
+                <form id="login">
+                    <input type="email" id="login-email" placeholder="Email" class="w-full p-3 mb-4 bg-gray-100 dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <input type="password" id="login-password" placeholder="Password" class="w-full p-3 mb-4 bg-gray-100 dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <button type="submit" class="w-full bg-blue-600 text-white p-3 rounded-md font-semibold hover:bg-blue-700 transition">Login</button>
+                </form>
+                <p class="text-center mt-4">Don't have an account? <a href="#" id="show-signup" class="text-blue-500 hover:underline">Sign Up</a></p>
+            </div>
+
+            <div id="signup-form" class="hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-center">Sign Up</h2>
+                <form id="signup">
+                    <input type="text" id="signup-username" placeholder="Username" class="w-full p-3 mb-4 bg-gray-100 dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <input type="email" id="signup-email" placeholder="Email" class="w-full p-3 mb-4 bg-gray-100 dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <input type="password" id="signup-password" placeholder="Password" class="w-full p-3 mb-4 bg-gray-100 dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <button type="submit" class="w-full bg-green-600 text-white p-3 rounded-md font-semibold hover:bg-green-700 transition">Sign Up</button>
+                </form>
+                <p class="text-center mt-4">Already have an account? <a href="#" id="show-login" class="text-blue-500 hover:underline">Login</a></p>
+            </div>
+            <p id="auth-error" class="text-red-500 text-center mt-4"></p>
+        </div>
+
+        <!-- Main Content (Feed, Profile, etc.) -->
+        <div id="main-content" class="hidden">
+            <!-- Header/Navbar -->
+            <header class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-40">
+                <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex items-center justify-between h-16">
+                        <div class="flex-shrink-0">
+                             <a href="#" class="text-2xl font-bold text-blue-600 dark:text-blue-400 nav-link" data-target="feed-section">NixMedia</a>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <a href="#" class="nav-link text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" data-target="feed-section">Home</a>
+                            <a href="#" class="nav-link text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" data-target="profile-section">Profile</a>
+                            <button id="logout-button" class="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-600">Logout</button>
+                        </div>
+                    </div>
+                </nav>
+            </header>
+
+            <main class="max-w-4xl mx-auto p-4">
+                <!-- Feed Section -->
+                <div id="feed-section" class="page-section space-y-6">
+                    <!-- Create Post Form -->
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                        <h3 class="font-bold text-lg mb-2">Create a Post</h3>
+                        <form id="create-post-form">
+                            <textarea id="post-content" placeholder="What's on your mind?" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3" required></textarea>
+                            <div class="flex justify-between items-center mt-2">
+                                <input type="file" id="post-image" accept="image/*" class="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-blue-700 transition">Post</button>
+                            </div>
+                        </form>
+                    </div>
+                    <!-- Posts Container -->
+                    <div id="posts-container" class="space-y-6">
+                        <!-- Posts will be dynamically inserted here -->
+                    </div>
+                </div>
+
+                <!-- Profile Section -->
+                <div id="profile-section" class="page-section hidden">
+                    <div id="profile-loader" class="flex justify-center p-10">
+                        <div class="spinner"></div>
+                    </div>
+                    <div id="profile-content" class="hidden">
+                        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                            <div class="flex items-center space-x-6">
+                                <img id="profile-avatar" src="https://placehold.co/128x128/e2e8f0/e2e8f0" class="w-32 h-32 rounded-full object-cover border-4 border-gray-200 dark:border-gray-700">
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <h2 id="profile-username" class="text-2xl font-bold"></h2>
+                                        <div id="profile-verified-badge" class="hidden">
+                                            <span class="text-white bg-blue-500 rounded-full flex items-center justify-center h-6 w-6">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <p id="profile-fullname" class="text-gray-600 dark:text-gray-400"></p>
+                                    <div class="flex space-x-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                        <p><strong id="profile-post-count">0</strong> posts</p>
+                                        <p><strong id="profile-follower-count">0</strong> followers</p>
+                                        <p><strong id="profile-following-count">0</strong> following</p>
+                                    </div>
+                                    <p id="profile-bio" class="mt-2"></p>
+                                </div>
+                            </div>
+                            <button id="edit-profile-btn" class="mt-4 w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 py-2 rounded-md font-semibold hover:bg-gray-300 dark:hover:bg-gray-600">Edit Profile</button>
+                        </div>
+
+                         <!-- Edit Profile Modal -->
+                        <div id="edit-profile-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-md">
+                                <h2 class="text-2xl font-bold mb-4">Edit Profile</h2>
+                                <form id="edit-profile-form">
+                                    <label for="edit-avatar">Profile Picture</label>
+                                    <input type="file" id="edit-avatar" accept="image/*" class="w-full mb-4 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+
+                                    <label for="edit-username">Username</label>
+                                    <input type="text" id="edit-username" class="w-full p-2 mb-4 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">
+                                    
+                                    <label for="edit-fullname">Full Name</label>
+                                    <input type="text" id="edit-fullname" class="w-full p-2 mb-4 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">
+
+                                    <label for="edit-bio">Bio</label>
+                                    <textarea id="edit-bio" rows="3" class="w-full p-2 mb-4 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md"></textarea>
+                                    
+                                    <div class="flex justify-end space-x-4">
+                                        <button type="button" id="cancel-edit-profile" class="bg-gray-200 dark:bg-gray-600 px-4 py-2 rounded-md">Cancel</button>
+                                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md font-semibold flex items-center justify-center w-36">
+                                            <span class="button-text">Save Changes</span>
+                                            <span class="button-spinner hidden spinner w-5 h-5 ml-2 border-t-white border-r-white"></span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div id="profile-posts-container" class="mt-6 space-y-6">
+                            <!-- User's posts will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Other User Profile Section -->
+                <div id="other-profile-section" class="page-section hidden">
+                    <!-- Dynamic content will be injected here -->
+                </div>
+
+            </main>
+        </div>
+    </div>
+    
+    <script type="module">
+        // Import Supabase client creator
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+        // --- SUPABASE SETUP ---
+        // Your Supabase project URL and anon (public) key
+        const SUPABASE_URL = 'https://nawuqlyoygugfjamjyff.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hd3VxbHlveWd1Z2ZqYW1qeWZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzOTA5NDEsImV4cCI6MjA3Mzk2Njk0MX0.dqhjwIWykCx8zZZMc99EUQy7QyKeKYpXiShR_sUtbeY';
+        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // --- DOM ELEMENT REFERENCES ---
+        const app = document.getElementById('app');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const authSection = document.getElementById('auth-section');
+        const mainContent = document.getElementById('main-content');
+        
+        const loginForm = document.getElementById('login');
+        const signupForm = document.getElementById('signup');
+        const authError = document.getElementById('auth-error');
+
+        const createPostForm = document.getElementById('create-post-form');
+        const postsContainer = document.getElementById('posts-container');
+        
+        const profileSection = document.getElementById('profile-section');
+        const profileAvatar = document.getElementById('profile-avatar');
+        const profileUsername = document.getElementById('profile-username');
+        const profileVerifiedBadge = document.getElementById('profile-verified-badge');
+        const profileFullname = document.getElementById('profile-fullname');
+        const profileBio = document.getElementById('profile-bio');
+        const profilePostCount = document.getElementById('profile-post-count');
+        const profileFollowerCount = document.getElementById('profile-follower-count');
+        const profileFollowingCount = document.getElementById('profile-following-count');
+        const profilePostsContainer = document.getElementById('profile-posts-container');
+        const editProfileModal = document.getElementById('edit-profile-modal');
+        const editProfileForm = document.getElementById('edit-profile-form');
+        const otherProfileSection = document.getElementById('other-profile-section');
+        
+        let currentUser = null;
+        let userProfile = null;
+        let notificationTimeout;
+
+        // --- UI UTILITIES ---
+        function showNotification(message, type = 'success') {
+            const toast = document.getElementById('notification-toast');
+            const messageEl = document.getElementById('notification-message');
+
+            messageEl.textContent = message;
+            
+            // Reset classes, keeping essential ones
+            toast.className = 'fixed top-5 right-5 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-transform transform';
+
+            if (type === 'error') {
+                toast.classList.add('bg-red-500');
+            } else {
+                toast.classList.add('bg-green-500');
+            }
+
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+
+            clearTimeout(notificationTimeout);
+
+            notificationTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+                 setTimeout(() => {
+                     toast.classList.add('hidden');
+                 }, 500);
+            }, 4000);
+        }
+
+        // --- PAGE/VIEW MANAGEMENT ---
+        function showPage(pageId) {
+            document.querySelectorAll('.page-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById(pageId).classList.remove('hidden');
+            if(pageId === 'profile-section') loadUserProfile();
+            if(pageId === 'feed-section') loadPosts();
+        }
+
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                showPage(link.dataset.target);
+            });
+        });
+
+        // --- AUTHENTICATION ---
+        // Listen for auth state changes (login, logout)
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            if (session) {
+                currentUser = session.user;
+                await fetchUserProfile();
+                authSection.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+                loadingSpinner.classList.add('hidden');
+                showPage('feed-section');
+                setupRealtimeSubscriptions();
+            } else {
+                currentUser = null;
+                userProfile = null;
+                authSection.classList.remove('hidden');
+                mainContent.classList.add('hidden');
+                loadingSpinner.classList.add('hidden');
+            }
+        });
+
+        // Handle Login
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            authError.textContent = '';
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+            if (error) {
+                authError.textContent = error.message;
+            } else {
+                loginForm.reset();
+            }
+        });
+
+        // Handle Signup
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            authError.textContent = '';
+            const username = document.getElementById('signup-username').value;
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+
+            // Sign up the user and pass username in metadata.
+            // A Supabase trigger (from your SQL setup) will create the profile automatically.
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        username: username,
+                    }
+                }
+            });
+
+            if (error) {
+                authError.textContent = error.message;
+            } else {
+                signupForm.reset();
+                showNotification('Account created! Please check your email to complete signup.', 'success');
+                // The onAuthStateChange listener will handle the rest once the user is logged in.
+            }
+        });
+
+
+        // Handle Logout
+        document.getElementById('logout-button').addEventListener('click', async () => {
+            await supabase.auth.signOut();
+        });
+
+        // Toggle between Login and Signup forms
+        document.getElementById('show-signup').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('signup-form').classList.remove('hidden');
+        });
+        document.getElementById('show-login').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('signup-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+        });
+
+
+        // --- PROFILE MANAGEMENT ---
+
+        // Fetch current user's profile data, making it resilient to race conditions on signup.
+        async function fetchUserProfile() {
+            if (!currentUser) return;
+
+            // First, try to select the profile. This will work for any existing user.
+            let { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .single();
+
+            // If the profile exists, we're done.
+            if (data) {
+                userProfile = data;
+                return;
+            }
+
+            // If it doesn't exist (common for a brand new user), the trigger might be slow.
+            // Let's create a fallback profile. This may fail if the trigger runs at the same time,
+            // which is perfectly fine. We just need to ensure a profile exists.
+            if (error) {
+                console.warn('Profile not found, attempting to create a fallback profile.');
+                const newProfileUsername = currentUser.user_metadata.username || `user${Math.floor(Math.random() * 10000)}`;
+                
+                const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert({ id: currentUser.id, username: newProfileUsername });
+
+                if (insertError && insertError.code !== '23505') { // 23505 is unique_violation, which we expect in a race
+                    console.error('Fatal: Failed to create fallback profile:', insertError);
+                    userProfile = null;
+                    return;
+                }
+            }
+
+            // One final attempt to fetch the profile, which must exist now.
+            const { data: finalProfile, error: finalError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .single();
+
+            if (finalError) {
+                console.error('Fatal: Could not get or create user profile after all attempts.', finalError);
+                userProfile = null;
+            } else {
+                console.log('Successfully fetched or created profile.');
+                userProfile = finalProfile;
+            }
+        }
+
+        // Load and display current user's profile
+        async function loadUserProfile() {
+            const profileLoader = document.getElementById('profile-loader');
+            const profileContent = document.getElementById('profile-content');
+
+            // Show loader, hide content
+            profileLoader.classList.remove('hidden');
+            profileContent.classList.add('hidden');
+
+            // Attempt to fetch profile if it's not already loaded
+            if (!userProfile) {
+                await fetchUserProfile();
+            }
+            
+            // If profile is still not available after fetching, show error.
+            if (!userProfile) {
+                profileLoader.innerHTML = `<p class="text-red-500 text-center">Could not load profile. Please try refreshing.</p>`;
+                return;
+            }
+
+            profileAvatar.src = userProfile.avatar_url || 'https://placehold.co/128x128/e2e8f0/e2e8f0?text=Avatar';
+            profileUsername.textContent = userProfile.username;
+            profileFullname.textContent = userProfile.full_name || '';
+            profileBio.textContent = userProfile.bio || 'No bio yet.';
+            
+            if (userProfile.is_verified) {
+                profileVerifiedBadge.classList.remove('hidden');
+            } else {
+                profileVerifiedBadge.classList.add('hidden');
+            }
+            
+            // Populate edit form
+            document.getElementById('edit-username').value = userProfile.username || '';
+            document.getElementById('edit-fullname').value = userProfile.full_name || '';
+            document.getElementById('edit-bio').value = userProfile.bio || '';
+            
+            // Load stats
+            const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+            profilePostCount.textContent = postCount || 0;
+            const { count: followerCount } = await supabase.from('followers').select('*', { count: 'exact', head: true }).eq('following_id', currentUser.id);
+            profileFollowerCount.textContent = followerCount || 0;
+            const { count: followingCount } = await supabase.from('followers').select('*', { count: 'exact', head: true }).eq('follower_id', currentUser.id);
+            profileFollowingCount.textContent = followingCount || 0;
+
+            // Load user's posts and wait for them to finish
+            await loadUserPosts(currentUser.id, profilePostsContainer);
+            
+            // Hide loader and show content
+            profileLoader.classList.add('hidden');
+            // Restore spinner in case we navigate back to this page
+            profileLoader.innerHTML = '<div class="spinner"></div>';
+            profileContent.classList.remove('hidden');
+        }
+        
+        // Handle showing/hiding the edit profile modal
+        document.getElementById('edit-profile-btn').addEventListener('click', () => editProfileModal.classList.remove('hidden'));
+        document.getElementById('cancel-edit-profile').addEventListener('click', () => editProfileModal.classList.add('hidden'));
+
+        // Handle profile update form submission
+        editProfileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const saveButton = editProfileForm.querySelector('button[type="submit"]');
+            const buttonText = saveButton.querySelector('.button-text');
+            const buttonSpinner = saveButton.querySelector('.button-spinner');
+
+            // Add a guard to prevent error if profile hasn't loaded.
+            if (!userProfile) {
+                showNotification("Your profile is still loading. Please try again in a moment.", "error");
+                return;
+            }
+
+            // --- Start Loading State ---
+            saveButton.disabled = true;
+            buttonText.classList.add('hidden');
+            buttonSpinner.classList.remove('hidden');
+
+            const username = document.getElementById('edit-username').value;
+            const fullName = document.getElementById('edit-fullname').value;
+            const bio = document.getElementById('edit-bio').value;
+            const avatarFile = document.getElementById('edit-avatar').files[0];
+            
+            let avatarUrl = userProfile.avatar_url;
+
+            // Upload avatar if a new one is selected
+            if (avatarFile) {
+                const filePath = `avatars/${currentUser.id}/${Date.now()}_${avatarFile.name}`;
+                const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, avatarFile);
+                if (uploadError) {
+                    showNotification(`Error uploading avatar: ${uploadError.message}`, "error");
+                    // --- End Loading State on Error ---
+                    saveButton.disabled = false;
+                    buttonText.classList.remove('hidden');
+                    buttonSpinner.classList.add('hidden');
+                    return;
+                }
+                const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+                avatarUrl = data.publicUrl;
+            }
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    username: username,
+                    full_name: fullName,
+                    bio: bio,
+                    avatar_url: avatarUrl,
+                })
+                .eq('id', currentUser.id);
+
+            // --- End Loading State ---
+            saveButton.disabled = false;
+            buttonText.classList.remove('hidden');
+            buttonSpinner.classList.add('hidden');
+
+            if (error) {
+                showNotification(`Error updating profile: ${error.message}`, "error");
+            } else {
+                showNotification("Profile updated successfully!");
+                await fetchUserProfile();
+                loadUserProfile();
+                editProfileModal.classList.add('hidden');
+            }
+        });
+        
+        
+        // --- POSTS ---
+        
+        // Load all posts for the feed
+        async function loadPosts() {
+            postsContainer.innerHTML = '<div class="spinner mx-auto"></div>';
+            
+            const { data: posts, error } = await supabase
+                .from('posts')
+                .select(`
+                    *,
+                    profiles!posts_user_id_fkey ( username, avatar_url, is_verified ),
+                    likes ( user_id ),
+                    comments ( id )
+                `)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Error fetching posts:', error);
+                postsContainer.innerHTML = '<p class="text-center text-red-500">Could not load posts.</p>';
+                return;
+            }
+
+            if (posts.length === 0) {
+                postsContainer.innerHTML = '<p class="text-center text-gray-500">No posts yet. Be the first!</p>';
+                return;
+            }
+
+            postsContainer.innerHTML = '';
+            posts.forEach(post => {
+                postsContainer.appendChild(createPostElement(post));
+            });
+            
+            handleUrlHash(); // Check for a post link in the URL
+        }
+        
+        // Load posts for a specific user
+        async function loadUserPosts(userId, container) {
+            container.innerHTML = '<div class="spinner mx-auto"></div>';
+            const { data: posts, error } = await supabase
+                .from('posts')
+                .select(`*, profiles!posts_user_id_fkey ( username, avatar_url, is_verified ), likes(user_id), comments(id)`)
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = '<p class="text-center text-red-500">Could not load posts.</p>';
+            } else if (posts.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500">This user has no posts.</p>';
+            } else {
+                container.innerHTML = '';
+                posts.forEach(post => container.appendChild(createPostElement(post)));
+            }
+        }
+
+
+        // Handle create post form submission
+        createPostForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const content = document.getElementById('post-content').value;
+            const imageFile = document.getElementById('post-image').files[0];
+            let imageUrl = null;
+
+            if (imageFile) {
+                 const filePath = `posts/${currentUser.id}/${Date.now()}_${imageFile.name}`;
+                 const { error: uploadError } = await supabase.storage.from('posts').upload(filePath, imageFile);
+                 if (uploadError) {
+                    showNotification(`Error uploading image: ${uploadError.message}`, 'error');
+                    return;
+                 }
+                 const { data } = supabase.storage.from('posts').getPublicUrl(filePath);
+                 imageUrl = data.publicUrl;
+            }
+
+            const { error: postError } = await supabase
+                .from('posts')
+                .insert({ user_id: currentUser.id, content: content, image_url: imageUrl });
+            
+            if (postError) {
+                showNotification(`Error creating post: ${postError.message}`, 'error');
+            } else {
+                createPostForm.reset();
+                showNotification('Post created!', 'success');
+                // Realtime will add the post to the UI
+            }
+        });
+
+
+        // --- LIKES, COMMENTS, AND POST ELEMENT CREATION ---
+        
+        function createPostElement(post) {
+            const postEl = document.createElement('div');
+            postEl.className = 'bg-white dark:bg-gray-800 p-4 rounded-lg shadow';
+            postEl.dataset.postId = post.id;
+
+            // Gracefully handle cases where the post author's profile might not have loaded correctly.
+            const author = post.profiles || { username: 'Unknown User', avatar_url: null, is_verified: false };
+
+            const likeCount = post.likes.length;
+            const isLikedByCurrentUser = post.likes.some(like => like.user_id === currentUser.id);
+
+            const verifiedBadgeHTML = author.is_verified ?
+                `<span class="text-white bg-blue-500 rounded-full flex items-center justify-center h-5 w-5 ml-1" title="Verified">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                    </svg>
+                </span>` : '';
+            
+            postEl.innerHTML = `
+                <div class="flex items-center mb-3">
+                    <img src="${author.avatar_url || 'https://placehold.co/48x48/e2e8f0/e2e8f0'}" class="w-12 h-12 rounded-full mr-3 object-cover">
+                    <div class="flex-grow">
+                        <div class="flex items-center">
+                            <a href="#" class="font-bold hover:underline user-link" data-user-id="${post.user_id}">${author.username}</a>
+                            ${verifiedBadgeHTML}
+                        </div>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">${new Date(post.created_at).toLocaleString()}</p>
+                    </div>
+                </div>
+                <p class="mb-3 whitespace-pre-wrap">${post.content}</p>
+                ${post.image_url ? `<img src="${post.image_url}" class="w-full rounded-lg mb-3 max-h-96 object-contain">` : ''}
+                <div class="flex items-center space-x-4 text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2">
+                    <button class="like-btn flex items-center space-x-1 hover:text-red-500 ${isLikedByCurrentUser ? 'text-red-500' : ''}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="${isLikedByCurrentUser ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.5l1.318-1.182a4.5 4.5 0 116.364 6.364L12 20.25l-7.682-7.682a4.5 4.5 0 010-6.364z" /></svg>
+                        <span class="like-count">${likeCount}</span>
+                    </button>
+                    <button class="comment-btn flex items-center space-x-1 hover:text-blue-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                        <span>${post.comments.length}</span>
+                    </button>
+                    <button class="share-btn flex items-center space-x-1 hover:text-green-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 6m4-4v12" /></svg>
+                        <span>Share</span>
+                    </button>
+                </div>
+                <div class="comments-section mt-4 hidden">
+                    <form class="comment-form flex items-center space-x-2">
+                        <input type="text" placeholder="Add a comment..." class="w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full text-sm">
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-1.5 rounded-full text-sm">Post</button>
+                    </form>
+                    <div class="comments-list mt-3 space-y-2">
+                        <!-- Comments will be loaded here -->
+                    </div>
+                </div>
+            `;
+            
+            // --- Event Listeners for Post Element ---
+            postEl.querySelector('.like-btn').addEventListener('click', () => toggleLike(post.id, postEl));
+            postEl.querySelector('.comment-btn').addEventListener('click', () => toggleComments(post.id, postEl));
+            postEl.querySelector('.share-btn').addEventListener('click', () => sharePost(post.id));
+            postEl.querySelector('.comment-form').addEventListener('submit', (e) => addComment(e, post.id, postEl));
+            postEl.querySelector('.user-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                loadOtherUserProfile(post.user_id);
+            });
+
+            return postEl;
+        }
+
+        async function toggleLike(postId, postEl) {
+             const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).match({ post_id: postId, user_id: currentUser.id });
+
+            if (count > 0) { // Unlike
+                await supabase.from('likes').delete().match({ post_id: postId, user_id: currentUser.id });
+            } else { // Like
+                await supabase.from('likes').insert({ post_id: postId, user_id: currentUser.id });
+            }
+            // Realtime will update the UI
+        }
+        
+        async function toggleComments(postId, postEl) {
+            const commentsSection = postEl.querySelector('.comments-section');
+            commentsSection.classList.toggle('hidden');
+            if (!commentsSection.classList.contains('hidden')) {
+                loadComments(postId, postEl);
+            }
+        }
+        
+        async function loadComments(postId, postEl) {
+            const commentsList = postEl.querySelector('.comments-list');
+            commentsList.innerHTML = '<div class="spinner mx-auto w-6 h-6"></div>';
+            
+            const { data: comments, error } = await supabase
+                .from('comments')
+                .select('*, profiles(username)')
+                .eq('post_id', postId)
+                .order('created_at', { ascending: true });
+            
+            if (error) {
+                commentsList.innerHTML = '<p class="text-red-500 text-sm">Could not load comments.</p>';
+                return;
+            }
+            
+            commentsList.innerHTML = '';
+            if (comments.length === 0) {
+                 commentsList.innerHTML = '<p class="text-gray-500 text-sm text-center">No comments yet.</p>';
+            } else {
+                comments.forEach(comment => {
+                    const commentEl = document.createElement('div');
+                    commentEl.className = 'text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded-lg';
+                    commentEl.innerHTML = `<a href="#" class="font-bold hover:underline user-link" data-user-id="${comment.user_id}">${comment.profiles.username}</a> <span class="text-gray-700 dark:text-gray-300">${comment.content}</span>`;
+                    commentEl.querySelector('.user-link').addEventListener('click', (e) => {
+                        e.preventDefault();
+                        loadOtherUserProfile(comment.user_id);
+                    });
+                    commentsList.appendChild(commentEl);
+                });
+            }
+        }
+        
+        async function addComment(e, postId, postEl) {
+            e.preventDefault();
+            const form = e.target;
+            const input = form.querySelector('input');
+            const content = input.value;
+            if (!content) return;
+
+            const { error } = await supabase
+                .from('comments')
+                .insert({ post_id: postId, user_id: currentUser.id, content: content });
+            
+            if (error) {
+                showNotification(`Error adding comment: ${error.message}`, 'error');
+            } else {
+                form.reset();
+                // Realtime will update the comment list and count
+            }
+        }
+        
+        function sharePost(postId) {
+            const url = `${window.location.origin}${window.location.pathname}#post=${postId}`;
+            const textArea = document.createElement("textarea");
+            textArea.value = url;
+            textArea.style.position = 'fixed'; // Prevent scrolling to bottom of page in MS Edge.
+            textArea.style.top = '0';
+            textArea.style.left = '0';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showNotification('Post link copied to clipboard!');
+            } catch (err) {
+                showNotification('Failed to copy link.', 'error');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        // --- OTHER USER PROFILES & FOLLOWING ---
+        async function loadOtherUserProfile(userId) {
+            if (userId === currentUser.id) {
+                showPage('profile-section');
+                return;
+            }
+            
+            otherProfileSection.innerHTML = '<div class="spinner mx-auto"></div>';
+            showPage('other-profile-section');
+            
+            const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+            if (error) {
+                 otherProfileSection.innerHTML = '<p class="text-center text-red-500">Could not load profile.</p>';
+                 return;
+            }
+            
+            const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('user_id', userId);
+            const { count: followerCount } = await supabase.from('followers').select('*', { count: 'exact', head: true }).eq('following_id', userId);
+            const { count: followingCount } = await supabase.from('followers').select('*', { count: 'exact', head: true }).eq('follower_id', userId);
+            
+            // Check if current user is following this profile
+            const { count: isFollowing } = await supabase.from('followers').select('*', { count: 'exact', head: true }).match({ follower_id: currentUser.id, following_id: userId });
+
+            const verifiedBadgeHTML = profile.is_verified ?
+                `<div title="Verified">
+                    <span class="text-white bg-blue-500 rounded-full flex items-center justify-center h-6 w-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                        </svg>
+                    </span>
+                </div>` : '';
+
+
+            otherProfileSection.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                    <div class="flex items-center space-x-6">
+                        <img src="${profile.avatar_url || 'https://placehold.co/128x128/e2e8f0/e2e8f0'}" class="w-32 h-32 rounded-full object-cover border-4 border-gray-200 dark:border-gray-700">
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <h2 class="text-2xl font-bold">${profile.username}</h2>
+                                ${verifiedBadgeHTML}
+                            </div>
+                            <p class="text-gray-600 dark:text-gray-400">${profile.full_name || ''}</p>
+                            <div class="flex space-x-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                <p><strong>${postCount || 0}</strong> posts</p>
+                                <p><strong>${followerCount || 0}</strong> followers</p>
+                                <p><strong>${followingCount || 0}</strong> following</p>
+                            </div>
+                            <p class="mt-2">${profile.bio || 'No bio yet.'}</p>
+                        </div>
+                    </div>
+                    <button id="follow-btn" data-user-id="${userId}" class="mt-4 w-full py-2 rounded-md font-semibold ${isFollowing > 0 ? 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200' : 'bg-blue-600 text-white'}">${isFollowing > 0 ? 'Unfollow' : 'Follow'}</button>
+                </div>
+                <div id="other-user-posts" class="mt-6 space-y-6"></div>
+            `;
+            
+            document.getElementById('follow-btn').addEventListener('click', () => toggleFollow(userId));
+            loadUserPosts(userId, document.getElementById('other-user-posts'));
+        }
+        
+        async function toggleFollow(userId) {
+            const { count: isFollowing } = await supabase.from('followers').select('*', { count: 'exact', head: true }).match({ follower_id: currentUser.id, following_id: userId });
+            
+            if (isFollowing > 0) { // Unfollow
+                await supabase.from('followers').delete().match({ follower_id: currentUser.id, following_id: userId });
+            } else { // Follow
+                await supabase.from('followers').insert({ follower_id: currentUser.id, following_id: userId });
+            }
+            // Reload the profile to update the button and counts
+            loadOtherUserProfile(userId);
+        }
+
+        // --- URL HASH HANDLING & REALTIME ---
+        function handleUrlHash() {
+            if (window.location.hash && window.location.hash.startsWith('#post=')) {
+                const postId = window.location.hash.substring(6);
+                const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+                if (postElement) {
+                    setTimeout(() => { // Use timeout to ensure page is fully rendered
+                        postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        postElement.classList.add('post-highlight');
+                        setTimeout(() => {
+                            postElement.classList.remove('post-highlight');
+                        }, 2000);
+                    }, 500); 
+                }
+            }
+        }
+        
+        function setupRealtimeSubscriptions() {
+            // Subscribe to new posts
+            supabase.channel('public:posts')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
+                    // Fetch the new post with profile data
+                    const { data: newPost, error } = await supabase
+                        .from('posts')
+                        .select(`*, profiles!posts_user_id_fkey ( username, avatar_url, is_verified ), likes(user_id), comments(id)`)
+                        .eq('id', payload.new.id)
+                        .single();
+                    if (!error && postsContainer.firstChild) {
+                        postsContainer.insertBefore(createPostElement(newPost), postsContainer.firstChild);
+                    }
+                }).subscribe();
+            
+            // Subscribe to likes and comments to update counts
+            supabase.channel('public:likes-comments')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'likes' }, payload => updatePostUI(payload.new.post_id || payload.old.post_id))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, payload => updatePostUI(payload.new.post_id || payload.old.post_id))
+                .subscribe();
+        }
+        
+        // Function to update a single post in the UI after a realtime event
+        async function updatePostUI(postId) {
+            const postEl = document.querySelector(`[data-post-id="${postId}"]`);
+            if (!postEl) return;
+            
+            const { data: updatedPost, error } = await supabase
+                .from('posts')
+                .select(`*, profiles!posts_user_id_fkey ( username, avatar_url, is_verified ), likes(user_id), comments(id)`)
+                .eq('id', postId)
+                .single();
+            
+            if (error) return;
+            
+            const newPostEl = createPostElement(updatedPost);
+            postEl.replaceWith(newPostEl);
+        }
+    </script>
+</body>
+</html>
+
