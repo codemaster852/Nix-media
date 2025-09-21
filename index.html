@@ -300,29 +300,14 @@
         // Listen for auth state changes (login, logout)
         supabase.auth.onAuthStateChange(async (event, session) => {
             if (session) {
-                // Optimistically show the main content. User is logged in.
                 currentUser = session.user;
+                await fetchUserProfile();
                 authSection.classList.add('hidden');
                 mainContent.classList.remove('hidden');
                 loadingSpinner.classList.add('hidden');
-                
-                try {
-                    // Now, try to get the profile.
-                    await fetchUserProfile(); 
-                    if (!userProfile) {
-                        // This case happens if fetchUserProfile fails gracefully but can't get a profile.
-                        throw new Error("User profile could not be fetched.");
-                    }
-                    // If profile is fetched, load the pages.
-                    showPage('feed-section');
-                    setupRealtimeSubscriptions();
-                } catch (error) {
-                    // If fetching profile fails, don't kick them out. Show an error.
-                    console.error("Error fetching profile after login:", error);
-                    mainContent.innerHTML = `<p class="text-center text-red-500 p-8">Could not load your profile. Please check your connection and refresh the page.</p>`;
-                }
+                showPage('feed-section');
+                setupRealtimeSubscriptions();
             } else {
-                // No session, show auth section and hide spinner.
                 currentUser = null;
                 userProfile = null;
                 authSection.classList.remove('hidden');
@@ -442,7 +427,6 @@
             if (finalError) {
                 console.error('Fatal: Could not get or create user profile after all attempts.', finalError);
                 userProfile = null;
-                throw new Error('Could not fetch or create user profile.');
             } else {
                 console.log('Successfully fetched or created profile.');
                 userProfile = finalProfile;
@@ -590,7 +574,23 @@
                 `)
                 .order('created_at', { ascending: false });
 
-            renderPosts(posts, error);
+            if (error) {
+                console.error('Error fetching posts:', error);
+                postsContainer.innerHTML = '<p class="text-center text-red-500">Could not load posts.</p>';
+                return;
+            }
+
+            if (posts.length === 0) {
+                postsContainer.innerHTML = '<p class="text-center text-gray-500">No posts yet. Be the first!</p>';
+                return;
+            }
+
+            postsContainer.innerHTML = '';
+            posts.forEach(post => {
+                postsContainer.appendChild(createPostElement(post));
+            });
+            
+            handleUrlHash(); // Check for a post link in the URL
         }
         
         // Load posts for a specific user
@@ -611,27 +611,6 @@
                 posts.forEach(post => container.appendChild(createPostElement(post)));
             }
         }
-        
-        // Render a list of posts into the main container
-        function renderPosts(posts, error) {
-            if (error) {
-                console.error('Error fetching posts:', error);
-                postsContainer.innerHTML = '<p class="text-center text-red-500">Could not load posts.</p>';
-                return;
-            }
-
-            if (posts.length === 0) {
-                postsContainer.innerHTML = '<p class="text-center text-gray-500">No posts found.</p>';
-                return;
-            }
-
-            postsContainer.innerHTML = '';
-            posts.forEach(post => {
-                postsContainer.appendChild(createPostElement(post));
-            });
-            
-            handleUrlHash(); // Check for a post link in the URL after rendering
-        }
 
 
         // Handle create post form submission
@@ -640,7 +619,7 @@
             const content = document.getElementById('post-content').value;
             const imageFile = document.getElementById('post-image').files[0];
             let imageUrl = null;
-            
+
             if (imageFile) {
                  const filePath = `posts/${currentUser.id}/${Date.now()}_${imageFile.name}`;
                  const { error: uploadError } = await supabase.storage.from('posts').upload(filePath, imageFile);
@@ -654,11 +633,7 @@
 
             const { error: postError } = await supabase
                 .from('posts')
-                .insert({ 
-                    user_id: currentUser.id, 
-                    content: content, 
-                    image_url: imageUrl
-                });
+                .insert({ user_id: currentUser.id, content: content, image_url: imageUrl });
             
             if (postError) {
                 showNotification(`Error creating post: ${postError.message}`, 'error');
@@ -674,8 +649,7 @@
         
         function createPostElement(post) {
             const postEl = document.createElement('div');
-            // Added border for better separation
-            postEl.className = 'bg-white dark:bg-gray-800 p-5 rounded-lg shadow border border-gray-200 dark:border-gray-700';
+            postEl.className = 'bg-white dark:bg-gray-800 p-4 rounded-lg shadow';
             postEl.dataset.postId = post.id;
 
             // Gracefully handle cases where the post author's profile might not have loaded correctly.
@@ -685,37 +659,37 @@
             const isLikedByCurrentUser = post.likes.some(like => like.user_id === currentUser.id);
 
             const verifiedBadgeHTML = author.is_verified ?
-                `<span class="text-white bg-blue-500 rounded-full flex items-center justify-center h-5 w-5 ml-1.5" title="Verified">
+                `<span class="text-white bg-blue-500 rounded-full flex items-center justify-center h-5 w-5 ml-1" title="Verified">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
                     </svg>
                 </span>` : '';
             
             postEl.innerHTML = `
-                <div class="flex items-center mb-4">
-                    <img src="${author.avatar_url || 'https://placehold.co/48x48/e2e8f0/e2e8f0'}" class="w-12 h-12 rounded-full mr-4 object-cover">
+                <div class="flex items-center mb-3">
+                    <img src="${author.avatar_url || 'https://placehold.co/48x48/e2e8f0/e2e8f0'}" class="w-12 h-12 rounded-full mr-3 object-cover">
                     <div class="flex-grow">
                         <div class="flex items-center">
-                            <a href="#" class="font-semibold text-lg hover:underline user-link" data-user-id="${post.user_id}">${author.username}</a>
+                            <a href="#" class="font-bold hover:underline user-link" data-user-id="${post.user_id}">${author.username}</a>
                             ${verifiedBadgeHTML}
                         </div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">${new Date(post.created_at).toLocaleString()}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">${new Date(post.created_at).toLocaleString()}</p>
                     </div>
                 </div>
-                <p class="mb-4 whitespace-pre-wrap text-gray-800 dark:text-gray-200">${post.content}</p>
-                ${post.image_url ? `<img src="${post.image_url}" class="w-full rounded-lg my-4 max-h-96 object-contain bg-gray-100 dark:bg-gray-700">` : ''}
-                <div class="flex items-center justify-around text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-                    <button class="like-btn flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 w-full justify-center ${isLikedByCurrentUser ? 'text-red-500' : ''}">
+                <p class="mb-3 whitespace-pre-wrap">${post.content}</p>
+                ${post.image_url ? `<img src="${post.image_url}" class="w-full rounded-lg mb-3 max-h-96 object-contain">` : ''}
+                <div class="flex items-center space-x-4 text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2">
+                    <button class="like-btn flex items-center space-x-1 hover:text-red-500 ${isLikedByCurrentUser ? 'text-red-500' : ''}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="${isLikedByCurrentUser ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.5l1.318-1.182a4.5 4.5 0 116.364 6.364L12 20.25l-7.682-7.682a4.5 4.5 0 010-6.364z" /></svg>
-                        <span class="like-count font-medium">${likeCount}</span>
+                        <span class="like-count">${likeCount}</span>
                     </button>
-                    <button class="comment-btn flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 w-full justify-center">
+                    <button class="comment-btn flex items-center space-x-1 hover:text-blue-500">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                        <span class="font-medium">${post.comments.length}</span>
+                        <span>${post.comments.length}</span>
                     </button>
-                    <button class="share-btn flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 w-full justify-center">
+                    <button class="share-btn flex items-center space-x-1 hover:text-green-500">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 6m4-4v12" /></svg>
-                        <span class="font-medium">Share</span>
+                        <span>Share</span>
                     </button>
                 </div>
                 <div class="comments-section mt-4 hidden">
@@ -961,4 +935,3 @@
     </script>
 </body>
 </html>
-
