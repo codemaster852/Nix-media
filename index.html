@@ -10,11 +10,20 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Custom Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        // This script is placed in the head to prevent a flash of the wrong theme.
+        // It checks local storage and system preference to apply the dark theme before the page renders.
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
     <style>
         /* Custom styles and animations */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
+            /* The background color is now applied directly to the body for both light and dark modes */
         }
         .hidden { display: none; }
         .spinner {
@@ -48,6 +57,16 @@
         }
         .post-highlight {
             animation: highlight-post 2s ease-out;
+        }
+        /* Search Tab styles */
+        .search-tab {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-bottom: 2px solid transparent;
+        }
+        .search-tab.active {
+            border-color: #3b82f6; /* blue-500 */
+            color: #3b82f6;
         }
     </style>
 </head>
@@ -104,9 +123,20 @@
                         <div class="flex-shrink-0">
                              <a href="#" class="text-2xl font-bold text-blue-600 dark:text-blue-400 nav-link" data-target="feed-section">NixMedia</a>
                         </div>
+                        <!-- Search Bar -->
+                        <div class="flex-1 px-4">
+                            <form id="search-form" class="w-full max-w-sm mx-auto">
+                                <input type="search" id="search-input" placeholder="Search for users or posts..." class="w-full p-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </form>
+                        </div>
                         <div class="flex items-center space-x-4">
                             <a href="#" class="nav-link text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" data-target="feed-section">Home</a>
                             <a href="#" class="nav-link text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400" data-target="profile-section">Profile</a>
+                             <!-- Dark Mode Toggle Button -->
+                            <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none rounded-lg text-sm p-2.5">
+                                <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                                <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.707.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM10 16a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM4.343 4.343a1 1 0 011.414 0l.707.707a1 1 0 01-1.414 1.414l-.707-.707a1 1 0 010-1.414zm-2.828 7.07a1 1 0 011.414 0l.707.707a1 1 0 11-1.414 1.414l-.707-.707a1 1 0 010-1.414z"></path></svg>
+                            </button>
                             <button id="logout-button" class="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-600">Logout</button>
                         </div>
                     </div>
@@ -122,7 +152,7 @@
                         <form id="create-post-form">
                             <textarea id="post-content" placeholder="What's on your mind?" class="w-full p-2 border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" rows="3" required></textarea>
                             <div class="flex justify-between items-center mt-2">
-                                <input type="file" id="post-image" accept="image/*" class="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                <input type="file" id="post-image" accept="image/*" class="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-gray-700 dark:file:text-gray-300 dark:hover:file:bg-gray-600">
                                 <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-blue-700 transition">Post</button>
                             </div>
                         </form>
@@ -171,7 +201,7 @@
                                 <h2 class="text-2xl font-bold mb-4">Edit Profile</h2>
                                 <form id="edit-profile-form">
                                     <label for="edit-avatar">Profile Picture</label>
-                                    <input type="file" id="edit-avatar" accept="image/*" class="w-full mb-4 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                                    <input type="file" id="edit-avatar" accept="image/*" class="w-full mb-4 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-gray-700 dark:file:text-gray-300 dark:hover:file:bg-gray-600">
 
                                     <label for="edit-username">Username</label>
                                     <input type="text" id="edit-username" class="w-full p-2 mb-4 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">
@@ -196,6 +226,19 @@
                             <!-- User's posts will be loaded here -->
                         </div>
                     </div>
+                </div>
+                
+                <!-- Search Section -->
+                <div id="search-section" class="page-section hidden">
+                    <h2 class="text-xl font-bold mb-4">Search Results for "<span id="search-term-display"></span>"</h2>
+                    <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
+                        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                            <button id="search-tab-users" data-target="search-users-content" class="search-tab active">Users</button>
+                            <button id="search-tab-posts" data-target="search-posts-content" class="search-tab">Posts</button>
+                        </nav>
+                    </div>
+                    <div id="search-users-content" class="search-content space-y-4"></div>
+                    <div id="search-posts-content" class="search-content hidden space-y-6"></div>
                 </div>
 
                 <!-- Other User Profile Section -->
@@ -244,6 +287,13 @@
         const editProfileForm = document.getElementById('edit-profile-form');
         const otherProfileSection = document.getElementById('other-profile-section');
         
+        // Search elements
+        const searchForm = document.getElementById('search-form');
+        const searchInput = document.getElementById('search-input');
+        const searchTermDisplay = document.getElementById('search-term-display');
+        const searchUsersContainer = document.getElementById('search-users-content');
+        const searchPostsContainer = document.getElementById('search-posts-content');
+
         let currentUser = null;
         let userProfile = null;
         let notificationTimeout;
@@ -295,41 +345,102 @@
                 showPage(link.dataset.target);
             });
         });
+        
+        // --- THEME/DARK MODE TOGGLE ---
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
+        const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+
+        // Function to update the visibility of icons based on the current theme
+        function updateThemeIcons() {
+            if (document.documentElement.classList.contains('dark')) {
+                themeToggleDarkIcon.classList.add('hidden');
+                themeToggleLightIcon.classList.remove('hidden');
+            } else {
+                themeToggleDarkIcon.classList.remove('hidden');
+                themeToggleLightIcon.classList.add('hidden');
+            }
+        }
+
+        // Set initial icon state
+        updateThemeIcons();
+
+        // Add click listener for the toggle button
+        themeToggleBtn.addEventListener('click', function() {
+            // Toggle the 'dark' class on the root <html> element
+            document.documentElement.classList.toggle('dark');
+
+            // Update local storage with the new theme preference
+            if (document.documentElement.classList.contains('dark')) {
+                localStorage.setItem('theme', 'dark');
+            } else {
+                localStorage.setItem('theme', 'light');
+            }
+            
+            // Update the icons to reflect the new theme
+            updateThemeIcons();
+        });
+
 
         // --- AUTHENTICATION ---
-        // Listen for auth state changes (login, logout)
-        supabase.auth.onAuthStateChange(async (event, session) => {
+        // Handles the initial state of the app
+        async function handleAuthState(session) {
             if (session) {
                 currentUser = session.user;
-                await fetchUserProfile();
-                authSection.classList.add('hidden');
-                mainContent.classList.remove('hidden');
-                loadingSpinner.classList.add('hidden');
-                showPage('feed-section');
-                setupRealtimeSubscriptions();
+                // Attempt to fetch the user profile
+                try {
+                    await fetchUserProfile();
+                    if (!userProfile) throw new Error("User profile could not be fetched.");
+                    
+                    // If successful, show main content and hide auth
+                    authSection.classList.add('hidden');
+                    mainContent.classList.remove('hidden');
+                    showPage('feed-section');
+                    setupRealtimeSubscriptions();
+
+                } catch (error) {
+                    console.error("Critical Error: Could not load user profile.", error);
+                    mainContent.innerHTML = `<p class="text-center text-red-500 p-8">Could not load your profile. Please check your connection and refresh the page.</p>`;
+                    authSection.classList.add('hidden');
+                    mainContent.classList.remove('hidden');
+                }
             } else {
+                // If no session, ensure main content is hidden and auth is shown
                 currentUser = null;
                 userProfile = null;
-                authSection.classList.remove('hidden');
                 mainContent.classList.add('hidden');
-                loadingSpinner.classList.add('hidden');
+                authSection.classList.remove('hidden');
+            }
+            // Hide the main loading spinner once everything is decided
+            loadingSpinner.classList.add('hidden');
+        }
+
+
+        // Listen for auth events
+        supabase.auth.onAuthStateChange(async (event, session) => {
+             // We only need to react to SIGNED_IN and SIGNED_OUT events here.
+             // The initial state is handled by the getSession() call below.
+            if (event === 'SIGNED_IN') {
+                await handleAuthState(session);
+            } else if (event === 'SIGNED_OUT') {
+                await handleAuthState(null);
             }
         });
 
+        // Check the initial session state when the app loads
+        async function initializeApp() {
+            const { data: { session } } = await supabase.auth.getSession();
+            await handleAuthState(session);
+        }
+        
         // Handle Login
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             authError.textContent = '';
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
-
             const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-            if (error) {
-                authError.textContent = error.message;
-            } else {
-                loginForm.reset();
-            }
+            if (error) authError.textContent = error.message;
         });
 
         // Handle Signup
@@ -339,33 +450,18 @@
             const username = document.getElementById('signup-username').value;
             const email = document.getElementById('signup-email').value;
             const password = document.getElementById('signup-password').value;
-
-            // Sign up the user and pass username in metadata.
-            // A Supabase trigger (from your SQL setup) will create the profile automatically.
-            const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        username: username,
-                    }
-                }
+            const { error } = await supabase.auth.signUp({
+                email, password, options: { data: { username: username } }
             });
-
             if (error) {
                 authError.textContent = error.message;
             } else {
-                signupForm.reset();
                 showNotification('Account created! Please check your email to complete signup.', 'success');
-                // The onAuthStateChange listener will handle the rest once the user is logged in.
             }
         });
 
-
         // Handle Logout
-        document.getElementById('logout-button').addEventListener('click', async () => {
-            await supabase.auth.signOut();
-        });
+        document.getElementById('logout-button').addEventListener('click', () => supabase.auth.signOut());
 
         // Toggle between Login and Signup forms
         document.getElementById('show-signup').addEventListener('click', (e) => {
@@ -427,6 +523,7 @@
             if (finalError) {
                 console.error('Fatal: Could not get or create user profile after all attempts.', finalError);
                 userProfile = null;
+                throw new Error('Could not fetch or create user profile.');
             } else {
                 console.log('Successfully fetched or created profile.');
                 userProfile = finalProfile;
@@ -574,23 +671,7 @@
                 `)
                 .order('created_at', { ascending: false });
 
-            if (error) {
-                console.error('Error fetching posts:', error);
-                postsContainer.innerHTML = '<p class="text-center text-red-500">Could not load posts.</p>';
-                return;
-            }
-
-            if (posts.length === 0) {
-                postsContainer.innerHTML = '<p class="text-center text-gray-500">No posts yet. Be the first!</p>';
-                return;
-            }
-
-            postsContainer.innerHTML = '';
-            posts.forEach(post => {
-                postsContainer.appendChild(createPostElement(post));
-            });
-            
-            handleUrlHash(); // Check for a post link in the URL
+            renderPosts(posts, error, postsContainer);
         }
         
         // Load posts for a specific user
@@ -602,14 +683,34 @@
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false });
 
-            if (error) {
+             if (error) {
                 container.innerHTML = '<p class="text-center text-red-500">Could not load posts.</p>';
             } else if (posts.length === 0) {
                 container.innerHTML = '<p class="text-center text-gray-500">This user has no posts.</p>';
             } else {
-                container.innerHTML = '';
-                posts.forEach(post => container.appendChild(createPostElement(post)));
+                renderPosts(posts, error, container);
             }
+        }
+        
+        // Render a list of posts into a given container
+        function renderPosts(posts, error, container) {
+            if (error) {
+                console.error('Error fetching posts:', error);
+                container.innerHTML = '<p class="text-center text-red-500">Could not load posts.</p>';
+                return;
+            }
+
+            if (posts.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500">No posts found.</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+            posts.forEach(post => {
+                container.appendChild(createPostElement(post));
+            });
+            
+            handleUrlHash(); // Check for a post link in the URL after rendering
         }
 
 
@@ -619,7 +720,7 @@
             const content = document.getElementById('post-content').value;
             const imageFile = document.getElementById('post-image').files[0];
             let imageUrl = null;
-
+            
             if (imageFile) {
                  const filePath = `posts/${currentUser.id}/${Date.now()}_${imageFile.name}`;
                  const { error: uploadError } = await supabase.storage.from('posts').upload(filePath, imageFile);
@@ -633,7 +734,11 @@
 
             const { error: postError } = await supabase
                 .from('posts')
-                .insert({ user_id: currentUser.id, content: content, image_url: imageUrl });
+                .insert({ 
+                    user_id: currentUser.id, 
+                    content: content, 
+                    image_url: imageUrl
+                });
             
             if (postError) {
                 showNotification(`Error creating post: ${postError.message}`, 'error');
@@ -649,7 +754,8 @@
         
         function createPostElement(post) {
             const postEl = document.createElement('div');
-            postEl.className = 'bg-white dark:bg-gray-800 p-4 rounded-lg shadow';
+            // Added border for better separation
+            postEl.className = 'bg-white dark:bg-gray-800 p-5 rounded-lg shadow border border-gray-200 dark:border-gray-700';
             postEl.dataset.postId = post.id;
 
             // Gracefully handle cases where the post author's profile might not have loaded correctly.
@@ -659,37 +765,37 @@
             const isLikedByCurrentUser = post.likes.some(like => like.user_id === currentUser.id);
 
             const verifiedBadgeHTML = author.is_verified ?
-                `<span class="text-white bg-blue-500 rounded-full flex items-center justify-center h-5 w-5 ml-1" title="Verified">
+                `<span class="text-white bg-blue-500 rounded-full flex items-center justify-center h-5 w-5 ml-1.5" title="Verified">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
                     </svg>
                 </span>` : '';
             
             postEl.innerHTML = `
-                <div class="flex items-center mb-3">
-                    <img src="${author.avatar_url || 'https://placehold.co/48x48/e2e8f0/e2e8f0'}" class="w-12 h-12 rounded-full mr-3 object-cover">
+                <div class="flex items-center mb-4">
+                    <img src="${author.avatar_url || 'https://placehold.co/48x48/e2e8f0/e2e8f0'}" class="w-12 h-12 rounded-full mr-4 object-cover">
                     <div class="flex-grow">
                         <div class="flex items-center">
-                            <a href="#" class="font-bold hover:underline user-link" data-user-id="${post.user_id}">${author.username}</a>
+                            <a href="#" class="font-semibold text-lg hover:underline user-link" data-user-id="${post.user_id}">${author.username}</a>
                             ${verifiedBadgeHTML}
                         </div>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">${new Date(post.created_at).toLocaleString()}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">${new Date(post.created_at).toLocaleString()}</p>
                     </div>
                 </div>
-                <p class="mb-3 whitespace-pre-wrap">${post.content}</p>
-                ${post.image_url ? `<img src="${post.image_url}" class="w-full rounded-lg mb-3 max-h-96 object-contain">` : ''}
-                <div class="flex items-center space-x-4 text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2">
-                    <button class="like-btn flex items-center space-x-1 hover:text-red-500 ${isLikedByCurrentUser ? 'text-red-500' : ''}">
+                <p class="mb-4 whitespace-pre-wrap text-gray-800 dark:text-gray-200">${post.content}</p>
+                ${post.image_url ? `<img src="${post.image_url}" class="w-full rounded-lg my-4 max-h-96 object-contain bg-gray-100 dark:bg-gray-700">` : ''}
+                <div class="flex items-center justify-around text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                    <button class="like-btn flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 w-full justify-center ${isLikedByCurrentUser ? 'text-red-500' : ''}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="${isLikedByCurrentUser ? 'currentColor' : 'none'}" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 016.364 0L12 7.5l1.318-1.182a4.5 4.5 0 116.364 6.364L12 20.25l-7.682-7.682a4.5 4.5 0 010-6.364z" /></svg>
-                        <span class="like-count">${likeCount}</span>
+                        <span class="like-count font-medium">${likeCount}</span>
                     </button>
-                    <button class="comment-btn flex items-center space-x-1 hover:text-blue-500">
+                    <button class="comment-btn flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 w-full justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                        <span>${post.comments.length}</span>
+                        <span class="font-medium">${post.comments.length}</span>
                     </button>
-                    <button class="share-btn flex items-center space-x-1 hover:text-green-500">
+                    <button class="share-btn flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 w-full justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8m-4-6l-4-4m0 0L8 6m4-4v12" /></svg>
-                        <span>Share</span>
+                        <span class="font-medium">Share</span>
                     </button>
                 </div>
                 <div class="comments-section mt-4 hidden">
@@ -803,6 +909,64 @@
                 showNotification('Failed to copy link.', 'error');
             }
             document.body.removeChild(textArea);
+        }
+
+        // --- SEARCH ---
+        searchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const searchTerm = searchInput.value.trim();
+            if (searchTerm) {
+                handleSearch(searchTerm);
+            }
+        });
+        
+        document.querySelectorAll('.search-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelectorAll('.search-content').forEach(content => content.classList.add('hidden'));
+                document.getElementById(tab.dataset.target).classList.remove('hidden');
+            });
+        });
+
+        async function handleSearch(term) {
+            showPage('search-section');
+            searchTermDisplay.textContent = term;
+            searchUsersContainer.innerHTML = '<div class="spinner mx-auto"></div>';
+            searchPostsContainer.innerHTML = '<div class="spinner mx-auto"></div>';
+            
+            // Fetch both searches concurrently
+            const [usersResult, postsResult] = await Promise.all([
+                supabase.from('profiles').select('*').ilike('username', `%${term}%`),
+                supabase.from('posts').select(`*, profiles!posts_user_id_fkey ( username, avatar_url, is_verified ), likes(user_id), comments(id)`).ilike('content', `%${term}%`)
+            ]);
+
+            // Render user results
+            const { data: users, error: usersError } = usersResult;
+            if (usersError) {
+                searchUsersContainer.innerHTML = `<p class="text-red-500">Error searching users.</p>`;
+            } else if (users.length === 0) {
+                searchUsersContainer.innerHTML = `<p class="text-gray-500">No users found.</p>`;
+            } else {
+                searchUsersContainer.innerHTML = '';
+                users.forEach(user => {
+                    const userEl = document.createElement('div');
+                    userEl.className = 'flex items-center p-3 bg-white dark:bg-gray-800 rounded-lg shadow';
+                    userEl.innerHTML = `
+                        <img src="${user.avatar_url || 'https://placehold.co/40x40/e2e8f0/e2e8f0'}" class="w-10 h-10 rounded-full mr-4 object-cover">
+                        <a href="#" class="font-semibold hover:underline user-link" data-user-id="${user.id}">${user.username}</a>
+                    `;
+                    userEl.querySelector('.user-link').addEventListener('click', (e) => {
+                        e.preventDefault();
+                        loadOtherUserProfile(user.id);
+                    });
+                    searchUsersContainer.appendChild(userEl);
+                });
+            }
+
+            // Render post results
+            const { data: posts, error: postsError } = postsResult;
+            renderPosts(posts, postsError, searchPostsContainer);
         }
 
         // --- OTHER USER PROFILES & FOLLOWING ---
@@ -932,6 +1096,10 @@
             const newPostEl = createPostElement(updatedPost);
             postEl.replaceWith(newPostEl);
         }
+        
+        // --- INITIALIZE APP ON LOAD ---
+        initializeApp();
     </script>
 </body>
 </html>
+
